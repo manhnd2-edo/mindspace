@@ -1,11 +1,14 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.scheduler import start_scheduler, stop_scheduler
-from app.routers import report, knowledge, airtable, sentiment, chat
+from app.routers import report, knowledge, airtable, sentiment, chat, agents
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
@@ -14,15 +17,15 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     start_scheduler()
-    logger.info("CTS Operations Agent started")
+    logger.info("NOVA started")
     yield
     stop_scheduler()
-    logger.info("CTS Operations Agent stopped")
+    logger.info("NOVA stopped")
 
 
 app = FastAPI(
-    title="CTS Operations Agent",
-    description="AI operations agent for VNGGames CTS social media team",
+    title="NOVA",
+    description="No-touch Operations & Virtual Assistant for VNGGames CTS social media team",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -32,6 +35,16 @@ app.include_router(knowledge.router, prefix="/knowledge", tags=["Knowledge Base"
 app.include_router(airtable.router, prefix="/airtable", tags=["Airtable Monitor"])
 app.include_router(sentiment.router, prefix="/sentiment", tags=["Sentiment Tracker"])
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])
+app.include_router(agents.router)
+
+_STATIC = Path(__file__).parent.parent / "static"
+if _STATIC.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
+
+
+@app.get("/", include_in_schema=False)
+async def index():
+    return FileResponse(str(_STATIC / "index.html"))
 
 
 @app.get("/health")

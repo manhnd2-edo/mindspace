@@ -14,7 +14,7 @@ from app.utils.llm import chat as llm_chat
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-SYSTEM_PROMPT = """Bạn là CTS Operations Agent – trợ lý AI cho team Social Media của VNGGames (PUBG Mobile VN, VALORANT, Roblox, TFT, LoL).
+SYSTEM_PROMPT = """Bạn là NOVA (No-touch Operations & Virtual Assistant) – trợ lý AI cho team Social Media của VNGGames (PUBG Mobile VN, VALORANT, Roblox, TFT, LoL).
 
 Bạn có thể giúp:
 1. Tạo report (Weekly/Monthly/Quarterly/Yearly/Campaign) – dùng /report/generate

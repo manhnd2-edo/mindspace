@@ -1,7 +1,7 @@
-# CTS Operations Agent
+# NOVA — No-touch Operations & Virtual Assistant
 
 AI-powered operations agent for the VNGGames CTS social media team.  
-Built with **FastAPI + Claude Sonnet** and deployed on **GreenNode AgentBase** via Docker.
+Built with **FastAPI + GreenNode MaaS** and deployed on **GreenNode AgentBase** via Docker.
 
 ---
 
@@ -9,11 +9,11 @@ Built with **FastAPI + Claude Sonnet** and deployed on **GreenNode AgentBase** v
 
 | Module | Description | Endpoint(s) |
 |---|---|---|
-| Report Generator | Pull Sprout Social data → Claude summary → Teams | `POST /report/generate` |
+| Report Generator | Pull Sprout Social data → LLM summary → Teams | `POST /report/generate` |
 | Knowledge Base | Store/retrieve product knowledge, generate content plans | `POST /knowledge/entries`, `GET /knowledge/entries`, `POST /knowledge/plan` |
 | Airtable Monitor | Daily anomaly check on content plan → Teams alert | `POST /airtable/check`, `GET /airtable/summary` |
 | Sentiment Tracker | Weekly inbox sentiment summary → Teams | `POST /sentiment/report` |
-| Chat | Free-text conversation with the agent | `POST /chat` |
+| Chat | Free-text conversation with NOVA | `POST /chat` |
 
 ---
 
@@ -50,11 +50,11 @@ docker compose up --build
 
 ```bash
 # Build and push image
-docker build -t cts-operations-agent .
-docker tag cts-operations-agent <your-registry>/cts-operations-agent:latest
-docker push <your-registry>/cts-operations-agent:latest
+docker build --platform linux/amd64 -t nova .
+docker tag nova vcr.vngcloud.vn/<repo>/nova:latest
+docker push vcr.vngcloud.vn/<repo>/nova:latest
 
-# Deploy on GreenNode: set env vars via their dashboard, port 8000
+# Deploy via AgentBase (port 8080, health at GET /health)
 ```
 
 ---
@@ -71,7 +71,8 @@ docker push <your-registry>/cts-operations-agent:latest
 | `AIRTABLE_TOKEN` | Airtable Personal Access Token |
 | `AIRTABLE_BASE_ID` | Airtable base ID (starts with `app`) |
 | `AIRTABLE_TABLE_NAME` | Table name in the base (default: `Content Planning`) |
-| `TEAMS_WEBHOOK_URL` | Microsoft Teams incoming webhook URL |
+| `ZALO_WEBHOOK_URL` | Zalo notification webhook URL |
+| `TEAMS_WEBHOOK_URL` | Microsoft Teams incoming webhook URL (optional) |
 
 ---
 
@@ -79,7 +80,7 @@ docker push <your-registry>/cts-operations-agent:latest
 
 | Job | Schedule | Action |
 |---|---|---|
-| Airtable daily check | Every day 09:00 ICT | Detect anomalies, alert Teams |
+| Airtable daily check | Every day 09:00 ICT | Detect anomalies, send alert |
 | Weekly sentiment report | Every Monday 08:00 ICT | Generate & send sentiment summary |
 
 ---
@@ -88,33 +89,35 @@ docker push <your-registry>/cts-operations-agent:latest
 
 ### Generate a weekly report
 ```bash
-curl -X POST http://localhost:8000/report/generate \
+curl -X POST http://localhost:8080/invocations \
   -H "Content-Type: application/json" \
-  -d '{"period": "weekly", "product": "PUBG Mobile VN", "send_to_teams": true}'
+  -d '{"module": "report", "period": "weekly", "product": "PUBG Mobile VN"}'
 ```
 
 ### Add knowledge entry
 ```bash
-curl -X POST http://localhost:8000/knowledge/entries \
+curl -X POST http://localhost:8080/invocations \
   -H "Content-Type: application/json" \
-  -d '{"title": "PUBG Season 20", "content": "Season 20 launches June 2026...", "tags": ["pubg","season"]}'
+  -d '{"module": "knowledge", "action": "add", "title": "PUBG Season 20", "content": "Season 20 launches June 2026...", "tags": ["pubg","season"]}'
 ```
 
 ### Generate content plan
 ```bash
-curl -X POST http://localhost:8000/knowledge/plan \
+curl -X POST http://localhost:8080/invocations \
   -H "Content-Type: application/json" \
-  -d '{"product": "PUBG Mobile VN", "period": "Tuần 24/2026", "topic": "Season 20 ra mắt"}'
+  -d '{"module": "knowledge", "action": "generate_plan", "product": "PUBG Mobile VN", "period": "Tuần 24/2026", "topic": "Season 20 ra mắt"}'
 ```
 
 ### Manual Airtable check
 ```bash
-curl -X POST http://localhost:8000/airtable/check
+curl -X POST http://localhost:8080/invocations \
+  -H "Content-Type: application/json" \
+  -d '{"module": "airtable", "action": "check"}'
 ```
 
-### Chat with the agent
+### Chat with NOVA (auto-routing)
 ```bash
-curl -X POST http://localhost:8000/chat \
+curl -X POST http://localhost:8080/invocations \
   -H "Content-Type: application/json" \
   -d '{"message": "Tạo kế hoạch nội dung cho sự kiện PUBG Esports tháng 7"}'
 ```

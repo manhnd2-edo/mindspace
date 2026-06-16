@@ -34,6 +34,9 @@ async def send_teams_message(title: str, text: str, color: str = "0078D7") -> bo
             }
         ],
     }
+    if not settings.teams_webhook_url:
+        logger.debug("TEAMS_WEBHOOK_URL not configured — skipping Teams notification")
+        return False
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.post(settings.teams_webhook_url, json=payload)

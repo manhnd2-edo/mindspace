@@ -1,12 +1,16 @@
 """Module 4 – Sentiment Tracker.
 
-Pulls inbox/mention messages from Sprout Social, uses Claude to generate
-a sentiment summary, and sends it to Teams on a weekly schedule.
+Fetches sentiment data from Google Sheets (primary source) with Sprout Social
+as fallback, uses the LLM to generate a summary, and sends it to Teams.
 """
 import logging
 from collections import Counter
 from datetime import date, timedelta
 
+from app.modules.sheets_client import (
+    fetch_sheet, rows_to_text,
+    SHEET_SENTIMENT_ANALYSIS,
+)
 from app.modules.sprout_client import sprout
 from app.utils.llm import chat
 from app.utils.teams import send_teams_message
@@ -33,6 +37,27 @@ def _aggregate_sentiment(messages: list[dict]) -> dict:
     return {"counts": dict(counter), "samples": samples, "total": sum(counter.values())}
 
 
+def _aggregate_sheets_sentiment(rows: list[dict]) -> dict:
+    """Aggregate sentiment rows from Google Sheets.
+
+    Expected columns: Sentiment (POSITIVE/NEGATIVE/NEUTRAL), Comment/Text, Date.
+    Falls back gracefully when columns differ.
+    """
+    counter: Counter = Counter()
+    samples: dict[str, list[str]] = {"POSITIVE": [], "NEGATIVE": [], "NEUTRAL": []}
+    for row in rows:
+        sentiment = (
+            row.get("Sentiment") or row.get("sentiment") or "NEUTRAL"
+        ).upper().strip()
+        if sentiment not in ("POSITIVE", "NEGATIVE", "NEUTRAL"):
+            sentiment = "NEUTRAL"
+        counter[sentiment] += 1
+        text = row.get("Comment") or row.get("Text") or row.get("text") or ""
+        if text and len(samples[sentiment]) < 3:
+            samples[sentiment].append(str(text)[:200])
+    return {"counts": dict(counter), "samples": samples, "total": sum(counter.values())}
+
+
 async def generate_sentiment_report(
     start: date | None = None,
     end: date | None = None,
@@ -43,22 +68,53 @@ async def generate_sentiment_report(
         start, end = _last_week()
 
     logger.info("Generating sentiment report [%s → %s]", start, end)
-    raw = await sprout.get_inbox_messages(start, end)
-    messages = raw.get("data", {}).get("messages", []) or raw.get("data", []) or []
 
-    if not messages:
-        report = f"Không có dữ liệu inbox/mention cho kỳ {start} → {end}."
-        if send_to_teams:
-            await send_teams_message(f"📬 Sentiment Report – {product}", report)
-        return report
+    # ── Primary: Google Sheets Sentiment Analysis tab ─────────────────────────
+    sheet_rows = await fetch_sheet(SHEET_SENTIMENT_ANALYSIS)
+    # Filter by date if a Date column exists
+    filtered_rows = []
+    for row in sheet_rows:
+        raw_date = row.get("Date", "")
+        try:
+            row_date = date.fromisoformat(str(raw_date)[:10])
+            if start <= row_date <= end:
+                filtered_rows.append(row)
+        except (ValueError, TypeError):
+            filtered_rows.append(row)
 
-    agg = _aggregate_sentiment(messages)
+    sheets_table = rows_to_text(filtered_rows, max_rows=100)
+
+    if filtered_rows:
+        agg = _aggregate_sheets_sentiment(filtered_rows)
+        data_source = "Google Sheets"
+    else:
+        # ── Fallback: Sprout Social ───────────────────────────────────────────
+        logger.info("No Sheets data — falling back to Sprout Social")
+        try:
+            raw = await sprout.get_inbox_messages(start, end)
+            messages = raw.get("data", {}).get("messages", []) or raw.get("data", []) or []
+        except Exception as e:
+            logger.warning("Sprout Social also unavailable: %s", e)
+            messages = []
+
+        if not messages:
+            report = f"Không có dữ liệu sentiment cho kỳ {start} → {end}."
+            if send_to_teams:
+                await send_teams_message(f"📬 Sentiment Report – {product}", report)
+            return report
+
+        agg = _aggregate_sentiment(messages)
+        data_source = "Sprout Social"
+        sheets_table = "(no Google Sheets data)"
 
     prompt = f"""Bạn là chuyên gia phân tích cộng đồng cho game {product} (VNGGames Vietnam).
-Dưới đây là dữ liệu cảm xúc (sentiment) từ inbox/mention trên mạng xã hội tuần {start} đến {end}.
+Dưới đây là dữ liệu cảm xúc (sentiment) từ {data_source}, tuần {start} đến {end}.
+
+## Bảng dữ liệu chi tiết ({data_source})
+{sheets_table}
 
 ## Thống kê tổng hợp
-- Tổng tin nhắn: {agg['total']}
+- Tổng bình luận: {agg['total']}
 - Tích cực (POSITIVE): {agg['counts'].get('POSITIVE', 0)}
 - Tiêu cực (NEGATIVE): {agg['counts'].get('NEGATIVE', 0)}
 - Trung lập (NEUTRAL): {agg['counts'].get('NEUTRAL', 0)}
