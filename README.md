@@ -27,4 +27,4 @@ Người dùng hiểu bản thân hơn mỗi ngày và nhận ra sớm khi nào 
 
 ## Demo
 
-[endpoint URL]
+https://endpoint-bca9c486-92be-4d01-bee0-768a53c109e1.agentbase-runtime.aiplatform.vngcloud.vn
