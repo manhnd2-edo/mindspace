@@ -1,123 +1,30 @@
-# NOVA — No-touch Operations & Virtual Assistant
+# MindSpace — Mental Health AI Agent Platform
 
-AI-powered operations agent for the VNGGames CTS social media team.  
-Built with **FastAPI + GreenNode MaaS** and deployed on **GreenNode AgentBase** via Docker.
+## Vấn đề đang giải quyết
 
----
+Sức khoẻ tinh thần là thứ dân văn phòng hay bỏ qua nhất — nhưng lại ảnh hưởng đến mọi thứ nhiều nhất. Stress và mệt mỏi tích luỹ từng ngày mà không ai nhận ra cho đến khi ảnh hưởng đến chất lượng công việc và cuộc sống. Các tổ chức thiếu công cụ để nhận biết sớm và hỗ trợ nhân viên đúng lúc, trong khi nhân viên thiếu một không gian an toàn để tự chăm sóc bản thân mỗi ngày.
 
-## Modules
+## Người dùng
 
-| Module | Description | Endpoint(s) |
-|---|---|---|
-| Report Generator | Pull Sprout Social data → LLM summary → Teams | `POST /report/generate` |
-| Knowledge Base | Store/retrieve product knowledge, generate content plans | `POST /knowledge/entries`, `GET /knowledge/entries`, `POST /knowledge/plan` |
-| Airtable Monitor | Daily anomaly check on content plan → Teams alert | `POST /airtable/check`, `GET /airtable/summary` |
-| Sentiment Tracker | Weekly inbox sentiment summary → Teams | `POST /sentiment/report` |
-| Chat | Free-text conversation with NOVA | `POST /chat` |
+MindSpace được build cho dân văn phòng — những người làm việc trong môi trường áp lực cao và muốn chủ động chăm sóc sức khoẻ tinh thần của mình mỗi ngày. Ngoài ra, MindSpace cũng hỗ trợ quản lý và HR trong việc theo dõi sức khoẻ tổng thể của team một cách ẩn danh.
 
----
+## Cách agent giải quyết
 
-## Setup
+MindSpace có 8 AI agent chuyên biệt, mỗi agent giải quyết một khía cạnh khác nhau của sức khoẻ tinh thần. Người dùng chỉ cần nói chuyện tự nhiên — agent tự phân tích cảm xúc, tự tính điểm Sức khoẻ tổng thể real-time, và đề xuất cách phục hồi phù hợp: bài thở 4-7-8, nhạc theo tâm trạng, micro-break, hay đơn giản là một người lắng nghe không phán xét. Mỗi hành động chăm sóc bản thân đều được ghi nhận và cộng điểm vào Wellness Score.
 
-### 1. Clone & configure
+## Giá trị mang lại
 
-```bash
-git clone <repo>
-cd cts-operations-agent
-cp .env.example .env
-# Edit .env with your credentials
-```
+Người dùng hiểu bản thân hơn mỗi ngày và nhận ra sớm khi nào cần điều chỉnh. Tổ chức có góc nhìn ẩn danh về sức khoẻ tinh thần của team để hỗ trợ đúng lúc mà không vi phạm privacy của ai. Môi trường làm việc tốt hơn bắt đầu từ những con người khoẻ mạnh hơn.
 
-### 2. Local development
+> "Tâm trí khoẻ mạnh là vũ khí sắc bén nhất."
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-mkdir -p data/knowledge
-uvicorn app.main:app --reload
-```
+## Tech Stack
 
-Open: http://localhost:8000/docs
+- GreenNode AgentBase
+- Qwen-3-27B + gemma-4-31b-it (GreenNode MaaS)
+- FastAPI + Python
+- 8 specialised AI agents
 
-### 3. Docker
+## Demo
 
-```bash
-docker compose up --build
-```
-
-### 4. GreenNode AgentBase deployment
-
-```bash
-# Build and push image
-docker build --platform linux/amd64 -t nova .
-docker tag nova vcr.vngcloud.vn/<repo>/nova:latest
-docker push vcr.vngcloud.vn/<repo>/nova:latest
-
-# Deploy via AgentBase (port 8080, health at GET /health)
-```
-
----
-
-## Environment Variables
-
-| Variable | Description |
-|---|---|
-| `GREENNODE_API_KEY` | GreenNode MaaS bearer token |
-| `GREENNODE_BASE_URL` | MaaS base URL (default: `https://maas-llm-aiplatform-hcm.api.vngcloud.vn/v1`) |
-| `GREENNODE_MODEL` | Model ID (default: `qwen/qwen3-5-27b`) |
-| `SPROUT_TOKEN` | Sprout Social Bearer token |
-| `SPROUT_CUSTOMER_ID` | Sprout Social customer/profile ID |
-| `AIRTABLE_TOKEN` | Airtable Personal Access Token |
-| `AIRTABLE_BASE_ID` | Airtable base ID (starts with `app`) |
-| `AIRTABLE_TABLE_NAME` | Table name in the base (default: `Content Planning`) |
-| `ZALO_WEBHOOK_URL` | Zalo notification webhook URL |
-| `TEAMS_WEBHOOK_URL` | Microsoft Teams incoming webhook URL (optional) |
-
----
-
-## Scheduled Jobs
-
-| Job | Schedule | Action |
-|---|---|---|
-| Airtable daily check | Every day 09:00 ICT | Detect anomalies, send alert |
-| Weekly sentiment report | Every Monday 08:00 ICT | Generate & send sentiment summary |
-
----
-
-## API Quick Reference
-
-### Generate a weekly report
-```bash
-curl -X POST http://localhost:8080/invocations \
-  -H "Content-Type: application/json" \
-  -d '{"module": "report", "period": "weekly", "product": "PUBG Mobile VN"}'
-```
-
-### Add knowledge entry
-```bash
-curl -X POST http://localhost:8080/invocations \
-  -H "Content-Type: application/json" \
-  -d '{"module": "knowledge", "action": "add", "title": "PUBG Season 20", "content": "Season 20 launches June 2026...", "tags": ["pubg","season"]}'
-```
-
-### Generate content plan
-```bash
-curl -X POST http://localhost:8080/invocations \
-  -H "Content-Type: application/json" \
-  -d '{"module": "knowledge", "action": "generate_plan", "product": "PUBG Mobile VN", "period": "Tuần 24/2026", "topic": "Season 20 ra mắt"}'
-```
-
-### Manual Airtable check
-```bash
-curl -X POST http://localhost:8080/invocations \
-  -H "Content-Type: application/json" \
-  -d '{"module": "airtable", "action": "check"}'
-```
-
-### Chat with NOVA (auto-routing)
-```bash
-curl -X POST http://localhost:8080/invocations \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Tạo kế hoạch nội dung cho sự kiện PUBG Esports tháng 7"}'
-```
+[endpoint URL]
